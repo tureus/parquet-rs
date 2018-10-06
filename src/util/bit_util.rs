@@ -22,6 +22,9 @@ use errors::{ParquetError, Result};
 use util::bit_packing::unpack32;
 use util::memory::ByteBufferPtr;
 
+#[cfg(test)]
+use rand::distributions::{ Distribution, Standard };
+
 /// Reads `$size` of bytes from `$src`, and reinterprets them as type `$ty`, in
 /// little-endian order. `$ty` must implement the `Default` trait. Otherwise this won't
 /// compile.
@@ -610,7 +613,6 @@ impl From<Vec<u8>> for BitReader {
 
 #[cfg(test)]
 mod tests {
-  use rand::Rand;
   use std::fmt::Debug;
 
   use super::super::memory::ByteBufferPtr;
@@ -928,7 +930,7 @@ mod tests {
   }
 
   fn test_put_aligned_rand_numbers<T>(total: usize, num_bits: usize)
-      where T: Copy + Rand + Default + Debug + PartialEq {
+      where T: Copy + Default + Debug + PartialEq, Standard: Distribution<T> {
     assert!(num_bits <= 32);
     assert!(total % 2 == 0);
 

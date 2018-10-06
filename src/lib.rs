@@ -142,7 +142,6 @@ extern crate lz4;
 extern crate num_bigint;
 extern crate zstd;
 
-#[cfg(test)]
 extern crate rand;
 
 #[macro_use]
