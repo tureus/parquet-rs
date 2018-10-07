@@ -16,8 +16,8 @@
 // under the License.
 
 use rand::{thread_rng, Rng};
-use rand::distributions::range::SampleRange;
 use rand::distributions::{Distribution, Standard};
+use rand::distributions::range::SampleRange;
 use std::env;
 use std::fs;
 use std::io::Write;

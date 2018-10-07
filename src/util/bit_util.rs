@@ -22,9 +22,6 @@ use errors::{ParquetError, Result};
 use util::bit_packing::unpack32;
 use util::memory::ByteBufferPtr;
 
-#[cfg(test)]
-use rand::distributions::{ Distribution, Standard };
-
 /// Reads `$size` of bytes from `$src`, and reinterprets them as type `$ty`, in
 /// little-endian order. `$ty` must implement the `Default` trait. Otherwise this won't
 /// compile.
@@ -618,6 +615,8 @@ mod tests {
   use super::super::memory::ByteBufferPtr;
   use super::super::test_common::*;
   use super::*;
+
+  use rand::distributions::{ Distribution, Standard };
 
   #[test]
   fn test_ceil() {

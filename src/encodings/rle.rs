@@ -497,7 +497,7 @@ impl RleDecoder {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use rand::{self, thread_rng, Rng, SeedableRng };
+  use rand::{self, thread_rng, Rng, SeedableRng};
   use rand::distributions::{Distribution, Standard};
   use util::memory::ByteBufferPtr;
 
@@ -778,9 +778,8 @@ mod tests {
       values.clear();
       let mut rng = thread_rng();
       let seed_vec : Vec<u8> = Standard.sample_iter(&mut rng).take(seed_len).collect();
-      let seed_slice = &seed_vec[0..32];
       let mut seed = [0u8; 32];
-      seed.copy_from_slice(seed_slice);
+      seed.copy_from_slice(&seed_vec[0..seed_len]);
       let mut gen = rand::StdRng::from_seed(seed);
 
       let mut parity = false;
