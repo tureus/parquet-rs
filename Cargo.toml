@@ -17,7 +17,7 @@
 
 [package]
 name = "parquet"
-version = "0.3.0"
+version = "0.4.2"
 license = "Apache-2.0"
 description = "Apache Parquet implementation in Rust"
 authors = [
@@ -31,7 +31,7 @@ repository = "https://github.com/sunchao/parquet-rs"
 keywords = ["parquet", "hadoop"]
 
 [dependencies]
-parquet-format = "2.4.0"
+parquet-format = "2.5.0"
 quick-error = "1.2.2"
 byteorder = "1"
 thrift = "0.0.4"
@@ -42,7 +42,12 @@ lz4 = "1.23"
 zstd = "0.4"
 chrono = "0.4"
 num-bigint = "0.2"
+syn = "0.15.21"
+quote = "0.6.10"
 
 [dev-dependencies]
 lazy_static = "1"
-rand = "0.4"
+rand = "0.5"
+
+[workspace]
+members = ["parquet_derive", "parquet_derive_test"]
