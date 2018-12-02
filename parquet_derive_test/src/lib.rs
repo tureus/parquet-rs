@@ -6,18 +6,13 @@ extern crate parquet_derive;
 use parquet::file::writer::RecordWriter;
 
 #[derive(ParquetRecordWriter)]
-//struct ACompleteRecord<'a> {
-struct ACompleteRecord {
+struct ACompleteRecord<'a> {
     pub a_bool: bool,
-    pub a2_bool: bool,
-//    pub a_str: &'a str
+    pub a_str: &'a str,
+    pub a_string: String,
+    pub a_borrowed_string: &'a String,
+    pub maybe_a_str: Option<&'a str>,
 }
-
-//impl RecordWriter<DumbRecord> for &[DumbRecord] {
-//    fn write_to_row_group(&self, row_group_writer: SerializedRowGroupWriter) {
-//        unimplemented!()
-//    }
-//}
 
 #[cfg(test)]
 mod tests {
@@ -38,19 +33,25 @@ mod tests {
         let file = get_temp_file("test_parquet_derive_hello", &[]);
         let schema_str = "message schema {
             REQUIRED boolean a_bool;
-            REQUIRED boolean a2_bool;
+            REQUIRED BINARY a_str (UTF8);
+            REQUIRED BINARY a_string (UTF8);
+            REQUIRED BINARY a_borrowed_string (UTF8);
+            OPTIONAL BINARY a_maybe_str (UTF8);
         }";
         let schema = Rc::new(parse_message_type(schema_str).unwrap());
 
         let props = Rc::new(WriterProperties::builder().build());
         let mut writer = SerializedFileWriter::new(file, schema, props).unwrap();
 
-        let a_str = "hi mom".to_owned();
+        let a_str = "hello mother".to_owned();
+        let a_borrowed_string = "cool news".to_owned();
         let drs : Vec<ACompleteRecord> = vec![
             ACompleteRecord {
                 a_bool: true,
-                a2_bool: false,
-//                a_str: &a_str[..],
+                a_str: &a_str[..],
+                a_string: "hello father".into(),
+                a_borrowed_string: &a_borrowed_string,
+                maybe_a_str: Some(&a_str[..]),
             }
         ];
         let chunks = &drs[..];
