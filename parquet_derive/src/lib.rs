@@ -76,7 +76,7 @@ fn extract_path_info(&syn::TypePath{path: Path{ref segments,..}, ..}: &syn::Type
     };
 
     if &seg.ident.to_string()[..] == "Option" {
-        if let Some((ident2,lifetime2,is_option2)) = second_level {
+        if let Some((ident2,_lifetime2,_is_option2)) = second_level {
             (ident2,true,None)
         } else {
             unimplemented!("I couldn't parse what was inside of option")
@@ -120,12 +120,6 @@ impl FieldInfo {
             "f32"  => quote!{ parquet::column::writer::ColumnWriter::FloatColumnWriter },
             "f64"  => quote!{ parquet::column::writer::ColumnWriter::DoubleColumnWriter },
             o      => unimplemented!("don't know {} for {:#?}", o, f)
-        };
-
-        let field_type_with_lifetime = if field_lifetime.is_none() {
-            quote! { #field_type }
-        } else {
-            quote! { &#field_lifetime #field_type }
         };
 
         FieldInfo {
@@ -240,9 +234,6 @@ impl FieldInfo {
 
 
 fn writer_from_field_infos(derived_for: Ident, generics: Generics, field_infos: &[FieldInfo]) -> proc_macro2::TokenStream {
-    let field_names : Vec<Ident> = field_infos.iter().map(|x| x.field_name.clone()).collect();
-    let field_types : Vec<Ident> = field_infos.iter().map(|x| x.field_type.clone()).collect();
-    let column_writer_variant : Vec<proc_macro2::TokenStream> = field_infos.iter().map(|x| x.column_writer_variant.clone()).collect();
     let writer_snippets : Vec<proc_macro2::TokenStream> = field_infos.iter().map(|x| x.to_writer_snippet()).collect();
 
     quote! {
