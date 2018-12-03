@@ -44,6 +44,11 @@ script:
   - cargo build
   - cargo test
   - cargo doc --no-deps
+  - cd parquet_derive_test
+  - cargo fmt --all -- --check
+  - cargo test
+  - cargo doc --no-deps
+  - cd ..
 
 after_success:
   - if [ "$TRAVIS_RUST_VERSION" == "nightly" ]; then

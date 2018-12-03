@@ -28,3 +28,6 @@ install:
 build: false
 test_script:
   - cargo test --verbose --jobs 4
+  - cd parquet_derive_test
+  - cargo test
+  - cd ..
