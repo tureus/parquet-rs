@@ -62,7 +62,10 @@ fn extract_path_info(&syn::TypePath{path: Path{ref segments,..}, ..}: &syn::Type
                     let (ident2,lifetime2,is_option2) = extract_type_reference_info(tr);
                     Some((ident2,lifetime2,is_option2))
                 },
-                syn::GenericArgument::Type(Type::Path(_)) => unimplemented!("generic argument type path"),
+                syn::GenericArgument::Type(Type::Path(ref tp)) => {
+                    let (ident2,_is_option2, _path_arguments) = extract_path_info(tp);
+                    Some((ident2,None,false))
+                },
                 syn::GenericArgument::Type(_) => unimplemented!("generic argument type not reference/path"),
                 syn::GenericArgument::Binding(_) => unimplemented!("generic argument binding"),
                 syn::GenericArgument::Constraint(_) => unimplemented!("generic argument constraint"),
@@ -86,32 +89,36 @@ fn extract_path_info(&syn::TypePath{path: Path{ref segments,..}, ..}: &syn::Type
 impl FieldInfo {
     fn from(f: &Field) -> Self {
         let (field_type,field_lifetime, is_option) = match &f.ty {
-            Type::Slice(_) => unimplemented!("boom: Slice"),
-            Type::Array(_) => unimplemented!("boom: Array"),
-            Type::Ptr(_) => unimplemented!("boom: Ptr"),
+            Type::Slice(_) => unimplemented!("unsupported type: Slice"),
+            Type::Array(_) => unimplemented!("unsupported type: Array"),
+            Type::Ptr(_) => unimplemented!("unsupported type: Ptr"),
             Type::Reference(ref tr) => {
 //                unimplemented!("lifetime: {:#?}", lifetime);
                 extract_type_reference_info(tr)
             },
-            Type::BareFn(_) => unimplemented!("boom: BareFn"),
-            Type::Never(_) => unimplemented!("boom: Never"),
-            Type::Tuple(_) => unimplemented!("boom: Tuple"),
+            Type::BareFn(_) => unimplemented!("unsupported type: BareFn"),
+            Type::Never(_) => unimplemented!("unsupported type: Never"),
+            Type::Tuple(_) => unimplemented!("unsupported type: Tuple"),
             Type::Path(tp) => {
                 let (ident,is_option, _) = extract_path_info(&tp);
                 (ident,None,is_option)
             },
-            Type::TraitObject(_) => unimplemented!("boom: TraitObject"),
-            Type::ImplTrait(_) => unimplemented!("boom: ImplTrait"),
-            Type::Paren(_) => unimplemented!("boom: Paren"),
-            Type::Group(_) => unimplemented!("boom: Group"),
-            Type::Infer(_) => unimplemented!("boom: Infer"),
-            Type::Macro(_) => unimplemented!("boom: Macro"),
-            Type::Verbatim(_) => unimplemented!("boom: Verbatim"),
+            Type::TraitObject(_) => unimplemented!("unsupported type: TraitObject"),
+            Type::ImplTrait(_) => unimplemented!("unsupported type: ImplTrait"),
+            Type::Paren(_) => unimplemented!("unsupported type: Paren"),
+            Type::Group(_) => unimplemented!("unsupported type: Group"),
+            Type::Infer(_) => unimplemented!("unsupported type: Infer"),
+            Type::Macro(_) => unimplemented!("unsupported type: Macro"),
+            Type::Verbatim(_) => unimplemented!("unsupported type: Verbatim"),
         };
 
         let column_writer_variant = match &field_type.to_string()[..] {
             "bool" => quote!{ parquet::column::writer::ColumnWriter::BoolColumnWriter },
             "str" | "String"  => quote!{ parquet::column::writer::ColumnWriter::ByteArrayColumnWriter },
+            "i32"  => quote!{ parquet::column::writer::ColumnWriter::Int32ColumnWriter },
+            "i64"  => quote!{ parquet::column::writer::ColumnWriter::Int64ColumnWriter },
+            "f32"  => quote!{ parquet::column::writer::ColumnWriter::FloatColumnWriter },
+            "f64"  => quote!{ parquet::column::writer::ColumnWriter::DoubleColumnWriter },
             o      => unimplemented!("don't know {} for {:#?}", o, f)
         };
 
@@ -177,8 +184,15 @@ impl FieldInfo {
                 },
                 _ => quote! {
                     {
-                        let filtered_vals : Vec<_> = self.iter().map(|x| x.#field_name).filter(|y| y.is_some()).filter_map().collect();
-                        let definition_levels : Vec<i16> = self.iter().map(|x| x.#field_name).map(|y| if y.is_some() { 1 } else { 0 }).collect();
+                        let filtered_vals : Vec<#field_type> = self.iter().
+                                map(|x| x.#field_name).
+                                filter(|y| y.is_some()).
+                                filter_map(|x| x).
+                                collect();
+                        let definition_levels : Vec<i16> = self.iter().
+                                map(|x| x.#field_name).
+                                map(|y| if y.is_some() { 1 } else { 0 }).
+                                collect();
 
                         if let #column_writer_variant(ref mut typed) = column_writer {
                             typed.write_batch(&filtered_vals[..], Some(&definition_levels[..]), None).unwrap();

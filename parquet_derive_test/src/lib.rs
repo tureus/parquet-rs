@@ -12,6 +12,11 @@ struct ACompleteRecord<'a> {
     pub a_string: String,
     pub a_borrowed_string: &'a String,
     pub maybe_a_str: Option<&'a str>,
+    pub magic_number: i32,
+    pub low_quality_pi: f32,
+    pub high_quality_pi: f64,
+    pub maybe_pi: Option<f32>,
+    pub maybe_best_pi: Option<f64>,
 }
 
 #[cfg(test)]
@@ -33,10 +38,15 @@ mod tests {
         let file = get_temp_file("test_parquet_derive_hello", &[]);
         let schema_str = "message schema {
             REQUIRED boolean a_bool;
-            REQUIRED BINARY a_str (UTF8);
-            REQUIRED BINARY a_string (UTF8);
-            REQUIRED BINARY a_borrowed_string (UTF8);
-            OPTIONAL BINARY a_maybe_str (UTF8);
+            REQUIRED BINARY  a_str (UTF8);
+            REQUIRED BINARY  a_string (UTF8);
+            REQUIRED BINARY  a_borrowed_string (UTF8);
+            OPTIONAL BINARY  a_maybe_str (UTF8);
+            REQUIRED INT32   magic_number;
+            REQUIRED FLOAT   low_quality_pi;
+            REQUIRED DOUBLE  high_quality_pi;
+            OPTIONAL FLOAT   maybe_pi;
+            OPTIONAL DOUBLE  maybe_best_pi;
         }";
         let schema = Rc::new(parse_message_type(schema_str).unwrap());
 
@@ -52,6 +62,11 @@ mod tests {
                 a_string: "hello father".into(),
                 a_borrowed_string: &a_borrowed_string,
                 maybe_a_str: Some(&a_str[..]),
+                magic_number: 100,
+                low_quality_pi: 3.14,
+                high_quality_pi: 3.1415,
+                maybe_pi: Some(3.14),
+                maybe_best_pi: Some(3.1415)
             }
         ];
         let chunks = &drs[..];
