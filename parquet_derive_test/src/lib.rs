@@ -17,7 +17,7 @@ struct ACompleteRecord<'a> {
   pub high_quality_pi: f64,
   pub maybe_pi: Option<f32>,
   pub maybe_best_pi: Option<f64>,
-  pub borrowed_maybe_a_string: &'a Option<String>
+  pub borrowed_maybe_a_string: &'a Option<String>,
 }
 
 #[cfg(test)]
