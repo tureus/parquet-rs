@@ -17,6 +17,7 @@ struct ACompleteRecord<'a> {
   pub high_quality_pi: f64,
   pub maybe_pi: Option<f32>,
   pub maybe_best_pi: Option<f64>,
+  pub borrowed_maybe_a_string: &'a Option<String>
 }
 
 #[cfg(test)]
@@ -46,6 +47,7 @@ mod tests {
             REQUIRED DOUBLE  high_quality_pi;
             OPTIONAL FLOAT   maybe_pi;
             OPTIONAL DOUBLE  maybe_best_pi;
+            OPTIONAL BINARY  borrowed_maybe_a_string (UTF8);
         }";
     let schema = Rc::new(parse_message_type(schema_str).unwrap());
 
@@ -54,6 +56,8 @@ mod tests {
 
     let a_str = "hello mother".to_owned();
     let a_borrowed_string = "cool news".to_owned();
+    let maybe_a_string = Some("it's true, I'm a string".into());
+
     let drs: Vec<ACompleteRecord> = vec![ACompleteRecord {
       a_bool: true,
       a_str: &a_str[..],
@@ -65,6 +69,7 @@ mod tests {
       high_quality_pi: 3.1415,
       maybe_pi: Some(3.14),
       maybe_best_pi: Some(3.1415),
+      borrowed_maybe_a_string: &maybe_a_string,
     }];
     let chunks = &drs[..];
 

@@ -176,11 +176,14 @@ impl FieldInfo {
                         collect();
                 let vals : Vec<parquet::data_type::ByteArray> = self.iter().
                         map(|x| x.#field_name).
-                        filter(|y| y.is_some()).
-                        filter_map(|z| z).
-                        map(|x|
-                            x.into()
-                        ).collect();
+                        filter_map(|z| {
+                          if let Some(ref inner) = z {
+                              Some((*inner).into())
+                          } else {
+                              None
+                          }
+                        }).
+                        collect();
                 if let #column_writer_variant(ref mut typed) = column_writer {
                     typed.write_batch(&vals[..], Some(&definition_levels[..]), None).unwrap();
                 }
@@ -188,7 +191,9 @@ impl FieldInfo {
         },
         // TODO: can this be lumped with str by doing Borrow<str>/AsRef<str> in the
         // ByteArray::from?
-        "String" => quote! {
+        "String" => {
+          // panic!("{:#?}", self);
+          quote! {
             {
                 let definition_levels : Vec<i16> = self.iter().
                         map(|x| x.#field_name).
@@ -196,15 +201,19 @@ impl FieldInfo {
                         collect();
                 let vals : Vec<parquet::data_type::ByteArray> = self.iter().
                         map(|x| x.#field_name).
-                        filter(|y| y.is_some()).
-                        filter_map(|z| z).
-                        map(|x|
-                            (&x[..]).into()
-                        ).collect();
+                        filter_map(|z| {
+                          if let Some(ref inner) = z {
+                              Some((&inner[..]).into())
+                          } else {
+                              None
+                          }
+                        }).
+                        collect();
                 if let #column_writer_variant(ref mut typed) = column_writer {
                     typed.write_batch(&vals[..], Some(&definition_levels[..]), None).unwrap();
                 }
             }
+          }
         },
         _ => quote! {
             {
