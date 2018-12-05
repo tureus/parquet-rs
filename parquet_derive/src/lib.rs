@@ -192,15 +192,14 @@ impl FieldInfo {
         // TODO: can this be lumped with str by doing Borrow<str>/AsRef<str> in the
         // ByteArray::from?
         "String" => {
-          // panic!("{:#?}", self);
           quote! {
             {
                 let definition_levels : Vec<i16> = self.iter().
-                        map(|x| x.#field_name).
+                        map(|x| &x.#field_name).
                         map(|y| if y.is_some() { 1 } else { 0 }).
                         collect();
                 let vals : Vec<parquet::data_type::ByteArray> = self.iter().
-                        map(|x| x.#field_name).
+                        map(|x| &x.#field_name).
                         filter_map(|z| {
                           if let Some(ref inner) = z {
                               Some((&inner[..]).into())
