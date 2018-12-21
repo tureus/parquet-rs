@@ -26,8 +26,7 @@ extern crate parquet;
 
 use syn::{
   parse_macro_input, AngleBracketedGenericArguments, Data, DataStruct, DeriveInput,
-  Field, Fields, Ident, Lifetime, Path,
-  PathArguments, Type,
+  Field, Fields, Ident, Lifetime, Path, PathArguments, Type,
 };
 
 /// Derive flat, simple RecordWriter implementations. Works by parsing
@@ -123,8 +122,12 @@ impl FieldInfo {
       "str" | "String" => {
         quote! { parquet::column::writer::ColumnWriter::ByteArrayColumnWriter }
       },
-      "i32" | "u32" => quote! { parquet::column::writer::ColumnWriter::Int32ColumnWriter },
-      "i64" | "u64" => quote! { parquet::column::writer::ColumnWriter::Int64ColumnWriter },
+      "i32" | "u32" => {
+        quote! { parquet::column::writer::ColumnWriter::Int32ColumnWriter }
+      },
+      "i64" | "u64" => {
+        quote! { parquet::column::writer::ColumnWriter::Int64ColumnWriter }
+      },
       "f32" => quote! { parquet::column::writer::ColumnWriter::FloatColumnWriter },
       "f64" => quote! { parquet::column::writer::ColumnWriter::DoubleColumnWriter },
       o => unimplemented!("don't know {} for {:#?}", o, f),
@@ -157,7 +160,6 @@ impl FieldInfo {
   ///
   /// because this parsing logic is not sophisticated enough for definition
   /// levels beyond 1.
-  ///
   fn to_writer_snippet(&self) -> proc_macro2::TokenStream {
     let field_name = self.field_name.clone();
     let field_type = self.field_type.clone();
@@ -278,13 +280,16 @@ impl FieldInfo {
     let second_level = match &seg.arguments {
       PathArguments::None => None,
       PathArguments::AngleBracketed(AngleBracketedGenericArguments {
-                                      ref args, ..
-                                    }) => {
+        ref args, ..
+      }) => {
         let generic_argument = args.iter().next().unwrap();
         match generic_argument {
-          syn::GenericArgument::Lifetime(_) => unimplemented!("generic argument lifetime"),
+          syn::GenericArgument::Lifetime(_) => {
+            unimplemented!("generic argument lifetime")
+          },
           syn::GenericArgument::Type(Type::Reference(ref tr)) => {
-            let (ident2, lifetime2, is_option2) = FieldInfo::extract_type_reference_info(tr);
+            let (ident2, lifetime2, is_option2) =
+              FieldInfo::extract_type_reference_info(tr);
             Some((ident2, lifetime2, is_option2))
           },
           syn::GenericArgument::Type(Type::Path(ref tp)) => {

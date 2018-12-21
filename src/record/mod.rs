@@ -22,5 +22,7 @@ pub mod reader;
 mod record_writer;
 mod triplet;
 
-pub use self::api::{List, ListAccessor, Map, MapAccessor, Row, RowAccessor};
-pub use self::record_writer::RecordWriter;
+pub use self::{
+  api::{List, ListAccessor, Map, MapAccessor, Row, RowAccessor},
+  record_writer::RecordWriter,
+};
