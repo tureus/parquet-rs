@@ -19,7 +19,7 @@
 
 # parquet_derive-rs
 
-A create for automatically deriving `RecordWriter` for arbitrary, _simple_ structs. This does not generate writers for nested structures but it will work great for shallow structures.
+A crate for automatically deriving `RecordWriter` for arbitrary, _simple_ structs. This does not generate writers for nested structures but it will work great for shallow structures.
 
 ## Usage
 Add this to your Cargo.toml:
@@ -39,7 +39,7 @@ Example usage of deriving a `RecordWriter` for your struct:
 
 ```rust
 use parquet;
-use parquet::file::writer::RecordWriter;
+use parquet::record::RecordWriter;
 
 #[derive(ParquetRecordWriter)]
 struct ACompleteRecord<'a> {
