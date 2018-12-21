@@ -81,16 +81,16 @@ pub fn parquet_record_writer(input: proc_macro::TokenStream) -> proc_macro::Toke
 
   (quote! {
       impl#generics RecordWriter<#derived_for#generics> for &[#derived_for#generics] {
-          fn write_to_row_group(&self, row_group_writer: &mut Box<parquet::file::writer::RowGroupWriter>) {
-             let mut row_group_writer = row_group_writer;
-          #(
-              {
-                  let mut column_writer = row_group_writer.next_column().unwrap().unwrap();
-                  #writer_snippets
-                  row_group_writer.close_column(column_writer).unwrap();
-              }
-          );*
+        fn write_to_row_group(&self, row_group_writer: &mut Box<parquet::file::writer::RowGroupWriter>) {
+           let mut row_group_writer = row_group_writer;
+        #(
+          {
+              let mut column_writer = row_group_writer.next_column().unwrap().unwrap();
+              #writer_snippets
+              row_group_writer.close_column(column_writer).unwrap();
           }
+        );*
+        }
       }
   }).into()
 }
@@ -173,91 +173,91 @@ impl FieldInfo {
 
       match &self.field_type.to_string()[..] {
         "str" => quote! {
-            {
-                #definition_levels
-                let vals : Vec<parquet::data_type::ByteArray> = self.iter().
-                  map(|x| x.#field_name).
-                  filter_map(|z| {
-                    if let Some(ref inner) = z {
-                        Some((*inner).into())
-                    } else {
-                        None
-                    }
-                  }).
-                  collect();
-
-                if let #column_writer_variant(ref mut typed) = column_writer {
-                    typed.write_batch(&vals[..], Some(&definition_levels[..]), None).unwrap();
+          {
+            #definition_levels
+            let vals : Vec<parquet::data_type::ByteArray> = self.iter().
+              map(|x| x.#field_name).
+              filter_map(|z| {
+                if let Some(ref inner) = z {
+                    Some((*inner).into())
+                } else {
+                    None
                 }
+              }).
+              collect();
+
+            if let #column_writer_variant(ref mut typed) = column_writer {
+                typed.write_batch(&vals[..], Some(&definition_levels[..]), None).unwrap();
             }
+          }
         },
         // TODO: can this be lumped with str by doing Borrow<str>/AsRef<str> in the
         // ByteArray::from?
         "String" => {
           quote! {
             {
-                #definition_levels
-                let vals : Vec<parquet::data_type::ByteArray> = self.iter().
-                  map(|x| &x.#field_name).
-                  filter_map(|z| {
-                    if let Some(ref inner) = z {
-                        Some((&inner[..]).into())
-                    } else {
-                        None
-                    }
-                  }).
-                  collect();
-                if let #column_writer_variant(ref mut typed) = column_writer {
-                    typed.write_batch(&vals[..], Some(&definition_levels[..]), None).unwrap();
-                }
+              #definition_levels
+              let vals : Vec<parquet::data_type::ByteArray> = self.iter().
+                map(|x| &x.#field_name).
+                filter_map(|z| {
+                  if let Some(ref inner) = z {
+                      Some((&inner[..]).into())
+                  } else {
+                      None
+                  }
+                }).
+                collect();
+              if let #column_writer_variant(ref mut typed) = column_writer {
+                  typed.write_batch(&vals[..], Some(&definition_levels[..]), None).unwrap();
+              }
             }
           }
         },
         _ => quote! {
-            {
-                #definition_levels
-                let vals : Vec<#field_type> = self.iter().
-                        map(|x| x.#field_name).
-                        filter(|y| y.is_some()).
-                        filter_map(|x| x).
-                        collect();
+          {
+            #definition_levels
+            let vals : Vec<#field_type> = self.iter().
+                    map(|x| x.#field_name).
+                    filter(|y| y.is_some()).
+                    filter_map(|x| x).
+                    collect();
 
-                if let #column_writer_variant(ref mut typed) = column_writer {
-                    typed.write_batch(&vals[..], Some(&definition_levels[..]), None).unwrap();
-                }
+            if let #column_writer_variant(ref mut typed) = column_writer {
+                typed.write_batch(&vals[..], Some(&definition_levels[..]), None).unwrap();
             }
+          }
         },
       }
     } else {
       match &self.field_type.to_string()[..] {
         "str" => quote! {
-            {
-                let vals : Vec<parquet::data_type::ByteArray> = self.iter().map(|x|
-                    x.#field_name.into()
-                ).collect();
-                if let #column_writer_variant(ref mut typed) = column_writer {
-                    typed.write_batch(&vals[..], None, None).unwrap();
-                }
+          {
+            let vals : Vec<parquet::data_type::ByteArray> = self.iter().map(|x|
+                x.#field_name.into()
+            ).collect();
+            if let #column_writer_variant(ref mut typed) = column_writer {
+                typed.write_batch(&vals[..], None, None).unwrap();
             }
+          }
         },
         // TODO: can this be lumped with str by doing Borrow<str> in the ByteArray::from?
         "String" => quote! {
-            {
-                let vals : Vec<parquet::data_type::ByteArray> = self.iter().map(|x|
-                    (&x.#field_name[..]).into()
-                ).collect();
-                if let #column_writer_variant(ref mut typed) = column_writer {
-                    typed.write_batch(&vals[..], None, None).unwrap();
-                }
+          {
+            let vals : Vec<parquet::data_type::ByteArray> = self.iter().map(|x|
+                (&x.#field_name[..]).into()
+            ).collect();
+            if let #column_writer_variant(ref mut typed) = column_writer {
+                typed.write_batch(&vals[..], None, None).unwrap();
             }
+          }
         },
         _ => quote! {
-            {
-                let vals : Vec<#field_type> = self.iter().map(|x| x.#field_name).collect();
-                if let #column_writer_variant(ref mut typed) = column_writer {
-                    typed.write_batch(&vals[..], None, None).unwrap();
-                }
+          {
+            let vals : Vec<#field_type> = self.iter().map(|x| x.#field_name).collect();
+            if let #column_writer_variant(ref mut typed) = column_writer {
+                typed.write_batch(&vals[..], None, None).unwrap();
             }
+          }
         },
       }
     }
@@ -271,9 +271,9 @@ impl FieldInfo {
   ) -> (Ident, bool, Option<PathArguments>)
   {
     let seg = segments
-        .iter()
-        .next()
-        .expect("must have at least 1 segment");
+      .iter()
+      .next()
+      .expect("must have at least 1 segment");
 
     let second_level = match &seg.arguments {
       PathArguments::None => None,
