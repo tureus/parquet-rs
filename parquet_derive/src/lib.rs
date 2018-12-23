@@ -56,6 +56,7 @@ struct FieldInfo {
   field_name: Ident,
   field_lifetime: Option<Lifetime>,
   field_type: Ident,
+  field_generic_arguments: Option<Ident>,
   is_option: bool,
   column_writer_variant: proc_macro2::TokenStream,
 }
@@ -119,7 +120,7 @@ impl FieldInfo {
 
     let column_writer_variant = match &field_type.to_string()[..] {
       "bool" => quote! { parquet::column::writer::ColumnWriter::BoolColumnWriter },
-      "str" | "String" => {
+      "str" | "String" | "Vec" => {
         quote! { parquet::column::writer::ColumnWriter::ByteArrayColumnWriter }
       },
       "i32" | "u32" => {
@@ -137,6 +138,7 @@ impl FieldInfo {
       field_name: f.ident.clone().expect("must be a named field"),
       field_lifetime,
       field_type,
+      field_generic_arguments: None,
       is_option,
       column_writer_variant,
     }
@@ -154,8 +156,9 @@ impl FieldInfo {
   ///
   /// but not
   ///
-  /// struct UnsupportedRecord {
-  ///   a_record: Record
+  /// struct UnsupportedNestedRecord {
+  ///   a_property: bool,
+  ///   nested_record: Record
   /// }
   ///
   /// because this parsing logic is not sophisticated enough for definition
@@ -265,7 +268,7 @@ impl FieldInfo {
     }
   }
 
-  fn extract_path_info(
+  fn extract_path_info_old(
     &syn::TypePath {
       path: Path { ref segments, .. },
       ..
@@ -320,6 +323,61 @@ impl FieldInfo {
     }
   }
 
+    fn extract_path_info(
+        &syn::TypePath {
+            path: Path { ref segments, .. },
+            ..
+        }: &syn::TypePath,
+    ) -> (Ident, bool, Option<PathArguments>)
+    {
+        let seg = segments
+            .iter()
+            .next()
+            .expect("must have at least 1 segment");
+
+        let second_level = match &seg.arguments {
+            PathArguments::None => None,
+            PathArguments::AngleBracketed(AngleBracketedGenericArguments {
+                                              ref args, ..
+                                          }) => {
+                let generic_argument = args.iter().next().unwrap();
+                match generic_argument {
+                    syn::GenericArgument::Lifetime(_) => {
+                        unimplemented!("generic argument lifetime")
+                    },
+                    syn::GenericArgument::Type(Type::Reference(ref tr)) => {
+                        let (ident2, lifetime2, is_option2) =
+                            FieldInfo::extract_type_reference_info(tr);
+                        Some((ident2, lifetime2, is_option2))
+                    },
+                    syn::GenericArgument::Type(Type::Path(ref tp)) => {
+                        let (ident2, _is_option2, _path_arguments) = FieldInfo::extract_path_info(tp);
+                        Some((ident2, None, false))
+                    },
+                    syn::GenericArgument::Type(_) => {
+                        unimplemented!("generic argument type not reference/path")
+                    },
+                    syn::GenericArgument::Binding(_) => unimplemented!("generic argument binding"),
+                    syn::GenericArgument::Constraint(_) => {
+                        unimplemented!("generic argument constraint")
+                    },
+                    syn::GenericArgument::Const(_) => unimplemented!("generic argument const"),
+                }
+            },
+            PathArguments::Parenthesized(_) => unimplemented!("parenthesized"),
+        };
+
+        if &seg.ident.to_string()[..] == "Option" {
+            if let Some((ident2, _lifetime2, _is_option2)) = second_level {
+                (ident2, true, None)
+            } else {
+                unimplemented!("I couldn't parse what was inside of option")
+            }
+        } else {
+            (seg.ident.clone(), false, Some(seg.arguments.clone()))
+        }
+    }
+
   fn extract_type_reference_info(
     &syn::TypeReference {
       ref lifetime,
@@ -335,4 +393,63 @@ impl FieldInfo {
       unimplemented!("unsupported elem {:#?}", elem)
     }
   }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use syn;
+
+    fn extract_fields(input: proc_macro2::TokenStream) -> Vec<syn::Field> {
+        let input: DeriveInput = syn::parse2(input).unwrap();
+
+        let fields = match input.data {
+            Data::Struct(DataStruct { fields, .. }) => fields,
+            _ => panic!("input must be a struct"),
+        };
+
+        fields.iter().map(|x| x.to_owned()).collect()
+    }
+
+    #[test]
+    fn field_info_vec() {
+        let snippet: proc_macro2::TokenStream = quote!{
+            struct VecHolder {
+                a_vec: Vec<u8>
+            }
+        };
+
+        let fields = extract_fields(snippet);
+        assert_eq!(fields.len(), 1);
+
+        let fi: FieldInfo = FieldInfo::from(&fields[0]);
+
+        let exp_field_name: syn::Ident = syn::parse2(quote!{ a_vec }).unwrap();
+        assert_eq!(fi.field_name, exp_field_name);
+
+        let exp_field_type: syn::Ident = syn::parse2(quote!{ Vec }).unwrap();
+        assert_eq!(fi.field_name, exp_field_name);
+    }
+
+    #[test]
+    fn field_info_option() {
+        let snippet: proc_macro2::TokenStream = quote!{
+            struct OptionHolder {
+                the_option: Option<String>
+            }
+        };
+
+        let fields = extract_fields(snippet);
+        assert_eq!(fields.len(), 1);
+
+        let fi: FieldInfo = FieldInfo::from(&fields[0]);
+
+        let exp_field_name: syn::Ident = syn::parse2(quote!{ the_option }).unwrap();
+        assert_eq!(fi.field_name, exp_field_name);
+
+        let exp_field_type: syn::Ident = syn::parse2(quote!{ Option }).unwrap();
+        assert_eq!(fi.field_name, exp_field_name);
+
+        fi.field_generic_arguments.unwrap();
+    }
 }
