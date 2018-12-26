@@ -527,7 +527,7 @@ mod test {
   #[test]
   fn simple_struct_to_writer_snippet() {
     let struct_def: proc_macro2::TokenStream = quote! {
-      struct StringBorrower<'a,'b> {
+      struct StringBorrower {
         the_string: String
       }
     };
@@ -544,6 +544,43 @@ mod test {
 
         if let parquet::column::writer::ColumnWriter::ByteArrayColumnWriter(ref mut typed) = column_writer {
             typed.write_batch(&vals[..], None, None).unwrap();
+        }
+      }
+    }).unwrap();
+
+    assert_eq!(writer_snippet, exp_writer_snippet);
+  }
+
+  #[test]
+  fn option_struct_to_writer_snippet() {
+    let struct_def: proc_macro2::TokenStream = quote! {
+      struct StringBorrower<'a> {
+        optional_str: Option<&'a str>
+      }
+    };
+
+    let fields = extract_fields(struct_def);
+    assert_eq!(fields.len(), 1);
+
+    let fi: FieldInfo = FieldInfo::from(&fields[0]);
+
+    let writer_snippet : syn::Expr = syn::parse2(fi.to_writer_snippet()).unwrap();
+    let exp_writer_snippet : syn::Expr = syn::parse2(quote!{
+      {
+        let definition_levels: Vec<i16> = self
+          .iter()
+          .map(|x| if x.optional_str.is_some() { 1 } else { 0 })
+          .collect();
+
+        let vals: Vec<parquet::data_type::ByteArray> = self
+          .iter()
+          .map(|x| x.maybe_a_str)
+          .filter(|y| y.is_some())
+          .filter_map(|x| x)
+          .collect();
+
+        if let parquet::column::writer::ColumnWriter::ByteArrayColumnWriter(ref mut typed) = column_writer {
+            typed.write_batch(&vals[..], definition_levels, None).unwrap();
         }
       }
     }).unwrap();
