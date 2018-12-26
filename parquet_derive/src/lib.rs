@@ -40,7 +40,7 @@ mod field_info;
 ///
 /// Example:
 ///
-/// ```
+/// ```ignore
 /// use parquet;
 /// use parquet::record::RecordWriter;
 //

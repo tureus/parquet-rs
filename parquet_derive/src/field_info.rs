@@ -113,7 +113,9 @@ impl FieldInfo {
           collect();
       };
 
-      match &self.field_type.to_string()[..] {
+      let field_type = &self.field_generic_arguments[0].field_type;
+
+      match &field_type.to_string()[..] {
         "str" => quote! {
           {
             #definition_levels
@@ -135,7 +137,7 @@ impl FieldInfo {
         },
         // TODO: can this be lumped with str by doing Borrow<str>/AsRef<str> in the
         // ByteArray::from?
-        "String" => {
+        "String" | "Vec" => {
           quote! {
             {
               #definition_levels
@@ -232,7 +234,38 @@ impl FieldInfo {
       PathArguments::Parenthesized(_) => unimplemented!("parenthesized"),
     };
 
-    (seg.ident.clone(), generic_arg)
+    let retval = (seg.ident.clone(), generic_arg);
+
+    FieldInfo::validate_compatibility(&retval);
+
+    retval
+  }
+
+  fn validate_compatibility(&(_, ref fgas): &(Ident, Vec<FieldInfoGenericArg>)) {
+    let err = "#[derive(ParquetRecordWriter)] does not support multiple generic args";
+    if fgas.len() > 1 {
+      unimplemented!("{}", err);
+    } else if fgas.len() == 0 {
+      return
+    }
+
+    let fga = &fgas[0];
+    let fgas2 = &fga.field_generic_args;
+
+    if fgas2.len() > 1 {
+      unimplemented!("{}", err)
+    } else if fgas2.len() == 0 {
+      return
+    }
+
+    let fga2 = &fgas2[0];
+
+    let fga_field_type = fga.field_type.to_string();
+    let fga2_field_type = fga2.field_type.to_string();
+
+    if fga_field_type == "Vec" && fga2_field_type != "u8" {
+      panic!("we only support Vec<u8>, you are using a Vec<{}>", fga2_field_type);
+    }
   }
 
   fn extract_type_reference_info(
@@ -256,16 +289,18 @@ impl FieldInfo {
 struct FieldInfoGenericArg {
   field_type: Ident,
   field_lifetime: Option<Lifetime>,
+  field_generic_args: Vec<FieldInfoGenericArg>,
 }
 
 impl FieldInfoGenericArg {
   fn from_generic_argument(arg: &syn::GenericArgument) -> Vec<Self> {
     match arg {
       syn::GenericArgument::Type(Type::Reference(ref tr)) => {
-        let (gen_type, gen_lifetime, _fga) = FieldInfo::extract_type_reference_info(tr);
+        let (gen_type, gen_lifetime, fga) = FieldInfo::extract_type_reference_info(tr);
         vec![FieldInfoGenericArg {
           field_type: gen_type,
           field_lifetime: gen_lifetime,
+          field_generic_args: fga,
         }]
       },
       syn::GenericArgument::Type(Type::Path(syn::TypePath {
@@ -287,10 +322,30 @@ impl FieldInfoGenericArg {
     }
   }
 
-  fn from_path_segment(seg: PathSegment) -> Self {
-    FieldInfoGenericArg {
-      field_type: seg.ident,
-      field_lifetime: None,
+  fn from_path_segment(PathSegment{ident,arguments}: PathSegment) -> Self {
+    match arguments {
+      PathArguments::None => FieldInfoGenericArg {
+        field_type: ident,
+        field_lifetime: None,
+        field_generic_args: vec![],
+      },
+      PathArguments::AngleBracketed(AngleBracketedGenericArguments {
+          args, ..
+        }) => {
+          let args_vec : Vec<&syn::GenericArgument> = args.iter().collect();
+          if args_vec.len() != 1 {
+            println!("only support 1 generic arg");
+          }
+          let fgas = FieldInfoGenericArg::from_generic_argument(args_vec[0]);
+          FieldInfoGenericArg {
+            field_type: ident,
+            field_lifetime: None,
+            field_generic_args: fgas,
+          }
+      },
+      PathArguments::Parenthesized(_) => {
+        unimplemented!("ho")
+      },
     }
   }
 
@@ -552,7 +607,7 @@ mod test {
   }
 
   #[test]
-  fn option_struct_to_writer_snippet() {
+  fn option_str_struct_to_writer_snippet() {
     let struct_def: proc_macro2::TokenStream = quote! {
       struct StringBorrower<'a> {
         optional_str: Option<&'a str>
@@ -572,19 +627,121 @@ mod test {
           .map(|x| if x.optional_str.is_some() { 1 } else { 0 })
           .collect();
 
-        let vals: Vec<parquet::data_type::ByteArray> = self
-          .iter()
-          .map(|x| x.maybe_a_str)
-          .filter(|y| y.is_some())
-          .filter_map(|x| x)
-          .collect();
+        let vals : Vec<parquet::data_type::ByteArray> = self.iter().
+          map(|x| x.optional_str).
+          filter_map(|z| {
+            if let Some(ref inner) = z {
+                Some((*inner).into())
+            } else {
+                None
+            }
+          }).
+          collect();
 
         if let parquet::column::writer::ColumnWriter::ByteArrayColumnWriter(ref mut typed) = column_writer {
-            typed.write_batch(&vals[..], definition_levels, None).unwrap();
+            typed.write_batch(&vals[..], Some(&definition_levels[..]), None).unwrap();
         }
       }
     }).unwrap();
 
     assert_eq!(writer_snippet, exp_writer_snippet);
   }
+
+  #[test]
+  fn option_string_struct_to_writer_snippet() {
+    let struct_def: proc_macro2::TokenStream = quote! {
+      struct StringBorrower<'a> {
+        optional_str: Option<String>
+      }
+    };
+
+    let fields = extract_fields(struct_def);
+    assert_eq!(fields.len(), 1);
+
+    let fi: FieldInfo = FieldInfo::from(&fields[0]);
+
+    let writer_snippet : syn::Expr = syn::parse2(fi.to_writer_snippet()).unwrap();
+    let exp_writer_snippet : syn::Expr = syn::parse2(quote!{
+      {
+        let definition_levels: Vec<i16> = self
+          .iter()
+          .map(|x| if x.optional_str.is_some() { 1 } else { 0 })
+          .collect();
+
+        let vals : Vec<parquet::data_type::ByteArray> = self.iter().
+          map(|x| &x.optional_str).
+          filter_map(|z| {
+            if let Some(ref inner) = z {
+                Some((&inner[..]).into())
+            } else {
+                None
+            }
+          }).
+          collect();
+
+        if let parquet::column::writer::ColumnWriter::ByteArrayColumnWriter(ref mut typed) = column_writer {
+            typed.write_batch(&vals[..], Some(&definition_levels[..]), None).unwrap();
+        }
+      }
+    }).unwrap();
+
+    assert_eq!(writer_snippet, exp_writer_snippet);
+  }
+
+  #[test]
+  fn option_vec_u8_struct_to_writer_snippet() {
+    let struct_def: proc_macro2::TokenStream = quote! {
+      struct StringBorrower<'a> {
+        optional_vector: Option<Vec<u8>>
+      }
+    };
+
+    let fields = extract_fields(struct_def);
+    assert_eq!(fields.len(), 1);
+
+    let fi: FieldInfo = FieldInfo::from(&fields[0]);
+
+    let writer_snippet : syn::Expr = syn::parse2(fi.to_writer_snippet()).unwrap();
+    let exp_writer_snippet : syn::Expr = syn::parse2(quote!{
+      {
+        let definition_levels: Vec<i16> = self
+          .iter()
+          .map(|x| if x.optional_vector.is_some() { 1 } else { 0 })
+          .collect();
+
+        let vals : Vec<parquet::data_type::ByteArray> = self.iter().
+          map(|x| &x.optional_vector).
+          filter_map(|z| {
+            if let Some(ref inner) = z {
+                Some((&inner[..]).into())
+            } else {
+                None
+            }
+          }).
+          collect();
+
+        if let parquet::column::writer::ColumnWriter::ByteArrayColumnWriter(ref mut typed) = column_writer {
+            typed.write_batch(&vals[..], Some(&definition_levels[..]), None).unwrap();
+        }
+      }
+    }).unwrap();
+
+    assert_eq!(writer_snippet, exp_writer_snippet);
+  }
+
+  #[test]
+  #[should_panic]
+  fn option_vec_i8_struct_to_writer_snippet() {
+    let struct_def: proc_macro2::TokenStream = quote! {
+      struct StringBorrower<'a> {
+        optional_bad_vector: Option<Vec<i8>>
+      }
+    };
+
+    let fields = extract_fields(struct_def);
+    assert_eq!(fields.len(), 1);
+
+    FieldInfo::from(&fields[0]);
+  }
+
 }
