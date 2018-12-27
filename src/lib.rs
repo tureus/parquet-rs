@@ -129,7 +129,6 @@
 
 #[macro_use]
 extern crate quick_error;
-extern crate arena;
 extern crate brotli;
 extern crate byteorder;
 extern crate chrono;
