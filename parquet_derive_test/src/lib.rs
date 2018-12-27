@@ -35,6 +35,7 @@ struct ACompleteRecord<'a> {
   pub maybe_best_pi: Option<f64>,
   pub borrowed_maybe_a_string: &'a Option<String>,
   pub borrowed_maybe_a_str: &'a Option<&'a str>,
+  pub unsigned_magic_number: u32,
 }
 
 #[cfg(test)]
@@ -54,19 +55,20 @@ mod tests {
   fn hello() {
     let file = get_temp_file("test_parquet_derive_hello", &[]);
     let schema_str = "message schema {
-            REQUIRED boolean a_bool;
-            REQUIRED BINARY  a_str (UTF8);
-            REQUIRED BINARY  a_string (UTF8);
-            REQUIRED BINARY  a_borrowed_string (UTF8);
-            OPTIONAL BINARY  a_maybe_str (UTF8);
-            OPTIONAL BINARY  a_maybe_string (UTF8);
-            REQUIRED INT32   magic_number;
-            REQUIRED FLOAT   low_quality_pi;
-            REQUIRED DOUBLE  high_quality_pi;
-            OPTIONAL FLOAT   maybe_pi;
-            OPTIONAL DOUBLE  maybe_best_pi;
-            OPTIONAL BINARY  borrowed_maybe_a_string (UTF8);
-            OPTIONAL BINARY  maybe_a_str (UTF8);
+            REQUIRED boolean         a_bool;
+            REQUIRED BINARY          a_str (UTF8);
+            REQUIRED BINARY          a_string (UTF8);
+            REQUIRED BINARY          a_borrowed_string (UTF8);
+            OPTIONAL BINARY          a_maybe_str (UTF8);
+            OPTIONAL BINARY          a_maybe_string (UTF8);
+            REQUIRED INT32           magic_number;
+            REQUIRED FLOAT           low_quality_pi;
+            REQUIRED DOUBLE          high_quality_pi;
+            OPTIONAL FLOAT           maybe_pi;
+            OPTIONAL DOUBLE          maybe_best_pi;
+            OPTIONAL BINARY          borrowed_maybe_a_string (UTF8);
+            OPTIONAL BINARY          maybe_a_str (UTF8);
+            REQUIRED INT(32,false)   unsigned_magic_number;
         }";
     let schema = Rc::new(parse_message_type(schema_str).unwrap());
 
@@ -92,6 +94,7 @@ mod tests {
       maybe_best_pi: Some(3.1415),
       borrowed_maybe_a_string: &maybe_a_string,
       borrowed_maybe_a_str: &maybe_a_str,
+      unsigned_magic_number: 1000,
     }];
     let chunks = &drs[..];
 

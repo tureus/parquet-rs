@@ -1,6 +1,6 @@
 use syn::{
-  AngleBracketedGenericArguments,
-  Field, Ident, Lifetime, Path, PathArguments, PathSegment, Type,
+  AngleBracketedGenericArguments, Field, Ident, Lifetime, Path, PathArguments,
+  PathSegment, Type,
 };
 
 #[derive(Debug)]
@@ -19,14 +19,14 @@ impl FieldInfo {
       Type::Array(_) => unimplemented!("unsupported type: Array"),
       Type::Ptr(_) => unimplemented!("unsupported type: Ptr"),
       Type::Reference(ref tr) => {
-        let (ft,fl, fga) = FieldInfo::extract_type_reference_info(tr);
+        let (ft, fl, fga) = FieldInfo::extract_type_reference_info(tr);
         (ft, fl, fga)
       },
       Type::BareFn(_) => unimplemented!("unsupported type: BareFn"),
       Type::Never(_) => unimplemented!("unsupported type: Never"),
       Type::Tuple(_) => unimplemented!("unsupported type: Tuple"),
       Type::Path(tp) => {
-        let (ft,fga) = FieldInfo::extract_path_info(&tp);
+        let (ft, fga) = FieldInfo::extract_path_info(&tp);
         (ft, None, fga)
       },
       Type::TraitObject(_) => unimplemented!("unsupported type: TraitObject"),
@@ -50,7 +50,10 @@ impl FieldInfo {
   fn column_writer_variant(&self) -> Path {
     let ftype_string = self.field_type.to_string();
     let ftype_string = if &ftype_string[..] == "Option" {
-      let fga : &FieldInfoGenericArg = self.field_generic_arguments.get(0).expect("must have at least 1 generic argument");
+      let fga: &FieldInfoGenericArg = self
+        .field_generic_arguments
+        .get(0)
+        .expect("must have at least 1 generic argument");
       fga.field_type.to_string()
     } else {
       ftype_string
@@ -65,8 +68,11 @@ impl FieldInfo {
       "str" | "String" | "Vec" => {
         quote! { parquet::column::writer::ColumnWriter::ByteArrayColumnWriter }
       },
-      "i32" | "u32" => {
+      "i32" => {
         quote! { parquet::column::writer::ColumnWriter::Int32ColumnWriter }
+      },
+      "u32" => {
+        quote! { parquet::column::writer::ColumnWriter::FixedLenByteArrayColumnWriter }
       },
       "i64" | "u64" => {
         quote! { parquet::column::writer::ColumnWriter::Int64ColumnWriter }
@@ -77,6 +83,13 @@ impl FieldInfo {
     };
 
     syn::parse2(column_writer_variant).unwrap()
+  }
+
+  fn use_as_bytes(id: &str) -> bool {
+    match id {
+      "u32" => true,
+      _ => false,
+    }
   }
 
   fn is_option(&self) -> bool { self.field_type.to_string() == "Option".to_string() }
@@ -214,7 +227,7 @@ impl FieldInfo {
     }: &syn::TypePath,
   ) -> (Ident, Vec<FieldInfoGenericArg>)
   {
-    let seg : &PathSegment = segments
+    let seg: &PathSegment = segments
       .iter()
       .next()
       .expect("must have at least 1 segment");
@@ -222,8 +235,8 @@ impl FieldInfo {
     let generic_arg = match &seg.arguments {
       PathArguments::None => vec![],
       PathArguments::AngleBracketed(AngleBracketedGenericArguments {
-                                      ref args, ..
-                                    }) => {
+        ref args, ..
+      }) => {
         let generic_argument: &syn::GenericArgument = args.iter().next().unwrap();
         args
           .iter()
@@ -246,7 +259,7 @@ impl FieldInfo {
     if fgas.len() > 1 {
       unimplemented!("{}", err);
     } else if fgas.len() == 0 {
-      return
+      return;
     }
 
     let fga = &fgas[0];
@@ -255,7 +268,7 @@ impl FieldInfo {
     if fgas2.len() > 1 {
       unimplemented!("{}", err)
     } else if fgas2.len() == 0 {
-      return
+      return;
     }
 
     let fga2 = &fgas2[0];
@@ -264,7 +277,10 @@ impl FieldInfo {
     let fga2_field_type = fga2.field_type.to_string();
 
     if fga_field_type == "Vec" && fga2_field_type != "u8" {
-      panic!("we only support Vec<u8>, you are using a Vec<{}>", fga2_field_type);
+      panic!(
+        "we only support Vec<u8>, you are using a Vec<{}>",
+        fga2_field_type
+      );
     }
   }
 
@@ -304,16 +320,14 @@ impl FieldInfoGenericArg {
         }]
       },
       syn::GenericArgument::Type(Type::Path(syn::TypePath {
-                                              path: Path { ref segments, .. },
-                                              ..
-                                            })) => {
+        path: Path { ref segments, .. },
+        ..
+      })) => {
         let segs: Vec<PathSegment> = segments.clone().into_iter().collect();
         FieldInfoGenericArg::from(segs)
       },
       syn::GenericArgument::Lifetime(_) => unimplemented!("generic arg: lifetime"),
-      syn::GenericArgument::Type(_) => {
-        unimplemented!("generic arg: only reference/path")
-      },
+      syn::GenericArgument::Type(_) => unimplemented!("generic arg: only reference/path"),
       syn::GenericArgument::Binding(_) => unimplemented!("generic arg: binding"),
       syn::GenericArgument::Constraint(_) => {
         unimplemented!("generic argument: constraint")
@@ -322,30 +336,26 @@ impl FieldInfoGenericArg {
     }
   }
 
-  fn from_path_segment(PathSegment{ident,arguments}: PathSegment) -> Self {
+  fn from_path_segment(PathSegment { ident, arguments }: PathSegment) -> Self {
     match arguments {
       PathArguments::None => FieldInfoGenericArg {
         field_type: ident,
         field_lifetime: None,
         field_generic_args: vec![],
       },
-      PathArguments::AngleBracketed(AngleBracketedGenericArguments {
-          args, ..
-        }) => {
-          let args_vec : Vec<&syn::GenericArgument> = args.iter().collect();
-          if args_vec.len() != 1 {
-            println!("only support 1 generic arg");
-          }
-          let fgas = FieldInfoGenericArg::from_generic_argument(args_vec[0]);
-          FieldInfoGenericArg {
-            field_type: ident,
-            field_lifetime: None,
-            field_generic_args: fgas,
-          }
+      PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => {
+        let args_vec: Vec<&syn::GenericArgument> = args.iter().collect();
+        if args_vec.len() != 1 {
+          println!("only support 1 generic arg");
+        }
+        let fgas = FieldInfoGenericArg::from_generic_argument(args_vec[0]);
+        FieldInfoGenericArg {
+          field_type: ident,
+          field_lifetime: None,
+          field_generic_args: fgas,
+        }
       },
-      PathArguments::Parenthesized(_) => {
-        unimplemented!("ho")
-      },
+      PathArguments::Parenthesized(_) => unimplemented!("ho"),
     }
   }
 
@@ -364,10 +374,7 @@ impl FieldInfoGenericArg {
 #[cfg(test)]
 mod test {
   use super::*;
-  use syn::{
-    self,
-    Data, DataStruct, DeriveInput
-  };
+  use syn::{self, Data, DataStruct, DeriveInput};
 
   fn extract_fields(input: proc_macro2::TokenStream) -> Vec<syn::Field> {
     let input: DeriveInput = syn::parse2(input).unwrap();
@@ -402,7 +409,7 @@ mod test {
     assert_eq!(fi.field_generic_arguments.len(), 1);
 
     let gen: &FieldInfoGenericArg = &fi.field_generic_arguments[0];
-    let exp_gen_type: syn::Ident = syn::parse2(quote!{ u8 }).unwrap();
+    let exp_gen_type: syn::Ident = syn::parse2(quote! { u8 }).unwrap();
     assert_eq!(gen.field_type, exp_gen_type);
     assert_eq!(gen.field_lifetime, None);
   }
@@ -429,7 +436,7 @@ mod test {
     assert_eq!(fi.field_generic_arguments.len(), 1);
 
     let gen: &FieldInfoGenericArg = &fi.field_generic_arguments[0];
-    let exp_gen_type: syn::Ident = syn::parse2(quote!{ String }).unwrap();
+    let exp_gen_type: syn::Ident = syn::parse2(quote! { String }).unwrap();
     assert_eq!(gen.field_type, exp_gen_type);
     assert_eq!(gen.field_lifetime, None);
   }
@@ -453,7 +460,7 @@ mod test {
     let exp_field_type: syn::Ident = syn::parse2(quote! { str }).unwrap();
     assert_eq!(fi.field_type, exp_field_type);
 
-    let exp_field_lifetime: syn::Lifetime = syn::parse2(quote!{ 'a }).unwrap();
+    let exp_field_lifetime: syn::Lifetime = syn::parse2(quote! { 'a }).unwrap();
     assert_eq!(fi.field_lifetime.as_ref().unwrap(), &exp_field_lifetime);
 
     assert_eq!(fi.field_generic_arguments.len(), 0);
@@ -478,7 +485,7 @@ mod test {
     let exp_field_type: syn::Ident = syn::parse2(quote! { String }).unwrap();
     assert_eq!(fi.field_type, exp_field_type);
 
-    let exp_field_lifetime: syn::Lifetime = syn::parse2(quote!{ 'a }).unwrap();
+    let exp_field_lifetime: syn::Lifetime = syn::parse2(quote! { 'a }).unwrap();
     assert_eq!(fi.field_lifetime.as_ref().unwrap(), &exp_field_lifetime);
 
     assert_eq!(fi.field_generic_arguments.len(), 0);
@@ -534,7 +541,7 @@ mod test {
     let exp_field_type: syn::Ident = syn::parse2(quote! { Option }).unwrap();
     assert_eq!(fi.field_type, exp_field_type);
 
-    let exp_field_lifetime: syn::Lifetime = syn::parse2(quote!{ 'a }).unwrap();
+    let exp_field_lifetime: syn::Lifetime = syn::parse2(quote! { 'a }).unwrap();
     assert_eq!(fi.field_lifetime.as_ref().unwrap(), &exp_field_lifetime);
 
     assert_eq!(fi.field_generic_arguments.len(), 1);
@@ -565,7 +572,7 @@ mod test {
     let exp_field_type: syn::Ident = syn::parse2(quote! { Option }).unwrap();
     assert_eq!(fi.field_type, exp_field_type);
 
-    let exp_field_lifetime: syn::Lifetime = syn::parse2(quote!{ 'a }).unwrap();
+    let exp_field_lifetime: syn::Lifetime = syn::parse2(quote! { 'a }).unwrap();
     assert_eq!(fi.field_lifetime.as_ref().unwrap(), &exp_field_lifetime);
 
     assert_eq!(fi.field_generic_arguments.len(), 1);
@@ -592,7 +599,7 @@ mod test {
 
     let fi: FieldInfo = FieldInfo::from(&fields[0]);
 
-    let writer_snippet : syn::Expr = syn::parse2(fi.to_writer_snippet()).unwrap();
+    let writer_snippet: syn::Expr = syn::parse2(fi.to_writer_snippet()).unwrap();
     let exp_writer_snippet : syn::Expr = syn::parse2(quote!{
       {
         let vals : Vec<parquet::data_type::ByteArray> = self.iter().map(|x| (&x.the_string[..]).into()).collect();
@@ -619,7 +626,7 @@ mod test {
 
     let fi: FieldInfo = FieldInfo::from(&fields[0]);
 
-    let writer_snippet : syn::Expr = syn::parse2(fi.to_writer_snippet()).unwrap();
+    let writer_snippet: syn::Expr = syn::parse2(fi.to_writer_snippet()).unwrap();
     let exp_writer_snippet : syn::Expr = syn::parse2(quote!{
       {
         let definition_levels: Vec<i16> = self
@@ -660,7 +667,7 @@ mod test {
 
     let fi: FieldInfo = FieldInfo::from(&fields[0]);
 
-    let writer_snippet : syn::Expr = syn::parse2(fi.to_writer_snippet()).unwrap();
+    let writer_snippet: syn::Expr = syn::parse2(fi.to_writer_snippet()).unwrap();
     let exp_writer_snippet : syn::Expr = syn::parse2(quote!{
       {
         let definition_levels: Vec<i16> = self
@@ -701,7 +708,7 @@ mod test {
 
     let fi: FieldInfo = FieldInfo::from(&fields[0]);
 
-    let writer_snippet : syn::Expr = syn::parse2(fi.to_writer_snippet()).unwrap();
+    let writer_snippet: syn::Expr = syn::parse2(fi.to_writer_snippet()).unwrap();
     let exp_writer_snippet : syn::Expr = syn::parse2(quote!{
       {
         let definition_levels: Vec<i16> = self

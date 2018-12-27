@@ -70,7 +70,7 @@ writer.close().unwrap();
 ```
 
 ## Features
-- [X] Support writing `String`, `&str`, `bool`, `i32`, `f32`, `f64`
+- [X] Support writing `String`, `&str`, `bool`, `i32`, `f32`, `f64`, `Vec<u8>`
 - [ ] Support writing dictionaries
 - [ ] Support writing logical types like timestamp
 - [X] Derive definition_levels for `Option`

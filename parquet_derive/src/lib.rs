@@ -24,9 +24,7 @@ extern crate quote;
 
 extern crate parquet;
 
-use syn::{
-  parse_macro_input, Data, DataStruct, DeriveInput
-};
+use syn::{parse_macro_input, Data, DataStruct, DeriveInput};
 
 mod field_info;
 
@@ -60,8 +58,10 @@ pub fn parquet_record_writer(input: proc_macro::TokenStream) -> proc_macro::Toke
     Data::Union(_) => unimplemented!("don't support union"),
   };
 
-  let field_infos: Vec<field_info::FieldInfo> =
-    fields.iter().map(|f: &syn::Field| field_info::FieldInfo::from(f)).collect();
+  let field_infos: Vec<field_info::FieldInfo> = fields
+    .iter()
+    .map(|f: &syn::Field| field_info::FieldInfo::from(f))
+    .collect();
 
   let writer_snippets: Vec<proc_macro2::TokenStream> =
     field_infos.iter().map(|x| x.to_writer_snippet()).collect();
